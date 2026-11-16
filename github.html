@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Contributor Email Finder</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-xl bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700">
+        <header class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-cyan-400">🔍 GitHub Contributor Email Finder</h1>
+            <p class="text-sm text-slate-400">किसी भी GitHub रिपॉजिटरी के डेवलपर्स और उनके पब्लिक ईमेल ढूंढें।</p>
+        </header>
+
+        <!-- Search Bar Section -->
+        <div class="mb-6">
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">रिपॉजिटरी का नाम दर्ज करें:</label>
+            <div class="flex items-center gap-2">
+                <input type="text" id="repoInput" placeholder="उदा. owner/repo (जैसे torvalds/linux)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-cyan-300 font-mono text-sm focus:outline-none focus:border-cyan-500">
+                <button onclick="fetchContributors()" class="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-lg text-sm font-semibold transition">Search</button>
+            </div>
+        </div>
+
+        <!-- Status & Results Section -->
+        <div class="border-t border-slate-700 pt-4">
+            <div class="flex justify-between items-center mb-3">
+                <span class="text-sm font-semibold text-slate-300">👥 डेवलपर्स की लिस्ट:</span>
+                <span id="statusText" class="text-xs text-yellow-400 font-mono">रेडी (Ready)</span>
+            </div>
+            
+            <div id="resultsContainer" class="bg-slate-900 border border-slate-700 rounded-lg p-4 min-h-[220px] max-h-[300px] overflow-y-auto space-y-3">
+                <p class="text-slate-500 text-center italic mt-16">यहाँ रिपॉजिटरी के परिणाम दिखेंगे।</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        async function fetchContributors() {
+            const repo = document.getElementById("repoInput").value.trim();
+            const statusText = document.getElementById("statusText");
+            const container = document.getElementById("resultsContainer");
+
+            if (!repo) {
+                alert("कृपया पहले रिपॉजिटरी का नाम डालें (उदा. owner/repo)");
+                return;
+            }
+
+            statusText.innerText = "डेटा फेच हो रहा है...";
+            container.innerHTML = `<p class="text-slate-400 text-center italic mt-16">लोड हो रहा है...</p>`;
+
+            try {
+                // GitHub API से contributors की लिस्ट लाना
+                const res = await fetch(`https://api.github.com/repos/${repo}/contributors`);
+                if (!res.ok) throw new Error("रिपॉजिटरी नहीं मिली या API लिमिट समाप्त हो गई है।");
+                
+                const contributors = await res.json();
+                if (contributors.length === 0) {
+                    statusText.innerText = "कोई योगदानकर्ता नहीं मिला।";
+                    container.innerHTML = `<p class="text-slate-500 text-center italic mt-16">कोई डेटा उपलब्ध नहीं है।</p>`;
+                    return;
+                }
+
+                statusText.innerText = `${contributors.length} डेवलपर्स मिले! ईमेल चेक हो रहे हैं...`;
+                container.innerHTML = "";
+
+                // हर एक contributor की प्रोफाइल से पब्लिक ईमेल निकालना
+                for (let user of contributors) {
+                    let email = "पब्लिक ईमेल उपलब्ध नहीं";
+                    try {
+                        const userRes = await fetch(user.url);
+                        const userData = await userRes.json();
+                        if (userData.email) email = userData.email;
+                    } catch (e) {}
+
+                    container.innerHTML += `
+                        <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <img src="${user.avatar_url}" class="w-10 h-10 rounded-full border border-slate-600" alt="avatar">
+                                <div>
+                                    <div class="font-bold text-white text-sm">${user.login}</div>
+                                    <div class="text-xs text-cyan-400 font-mono">📧 ${email}</div>
+                                </div>
+                            </div>
+                            <button onclick="copyText('${email}', this)" class="bg-slate-700 hover:bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-xs transition font-mono">Copy</button>
+                        </div>
+                    `;
+                }
+                statusText.innerText = "सर्च पूरी हुई!";
+            } catch (err) {
+                statusText.innerText = "एरर आया है!";
+                container.innerHTML = `<p class="text-rose-400 text-center italic mt-16">एरर: ${err.message}</p>`;
+            }
+        }
+
+        function copyText(text, btn) {
+            if(text.includes("पब्लिक ईमेल उपलब्ध नहीं")) {
+                alert("इस यूजर का पब्लिक ईमेल उपलब्ध नहीं है!");
+                return;
+            }
+            navigator.clipboard.writeText(text);
+            btn.innerText = "Copied!";
+            btn.classList.add("bg-emerald-600");
+            setTimeout(() => {
+                btn.innerText = "Copy";
+                btn.classList.remove("bg-emerald-600");
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
